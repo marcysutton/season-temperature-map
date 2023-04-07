@@ -68,17 +68,6 @@ temps = {
             springequinox1948_high: 11,
             springequinox1948_low: -21
 		},
-	'Vancouver'			: 	
-		{	
-			springequinox2023_high: 51,
-            springequinox2023_low: 45,
-            springequinox2013_high: 55,
-            springequinox2013_low: 39,
-            springequinox1973_high: 51,
-            springequinox1973_low: 40,
-            springequinox1948_high: 44,
-            springequinox1948_low: 32
-		}, 
 	'Edmonton'	:	
 		{ 
 			springequinox2023_high: 34,
@@ -156,7 +145,7 @@ temps = {
             springequinox1948_high: 58,
             springequinox1948_low: 35
 		}, 
-	'San Diego'			:		
+	'Tijuana'			:		
 		{	
 			springequinox2023_high: 63,
             springequinox2023_low: 56,
@@ -254,17 +243,6 @@ temps = {
             springequinox1973_low: 58,
             springequinox1948_high: 82,
             springequinox1948_low: 72
-        },
-    'Jacksonville'			:		
-        {	
-            springequinox2023_high: 62,
-            springequinox2023_low: 37,
-            springequinox2013_high: 64,
-            springequinox2013_low: 45,
-            springequinox1973_high: 76,
-            springequinox1973_low: 51,
-            springequinox1948_high: 88,
-            springequinox1948_low: 66
         },
     'Miami'			:		
         {	
