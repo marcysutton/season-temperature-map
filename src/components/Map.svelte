@@ -21,7 +21,16 @@ const places = topojson.feature(data, data.objects.places)
 let boundaries = topojson.mesh(data, data.objects.subunits, (a, b) => { return a !== b })
 
 let seasonMap
+let wrapper
 let keyHandler
+let mouseHandler
+let focusHandler
+let blurHandler
+
+$: pathBtnCoords = []
+$: currentCityName = ''
+$: currentBtnIndex = 0
+$: currentCityPosition = {bottom:0, left: 0, right: 0, top: 0}
 
 const DIRECTION = {
     UP: 'ArrowUp', RIGHT: 'ArrowRight', DOWN: 'ArrowDown', LEFT: 'ArrowLeft'
@@ -31,7 +40,18 @@ onMount(() => {
     let mapRect = seasonMap.getBoundingClientRect()
     let mapWidth = mapRect.width
     let mapHeight = mapRect.height
-    let currentBtnIndex = null
+
+    // collect rendered interactive path nodes
+    const pathBtns = Array.from(seasonMap.querySelectorAll('path[tabindex]'))
+    // make first button focusable
+
+    // create array of DOMRects
+    pathBtnCoords = pathBtns.map((btn, i) => {
+        // set a data attr with a numerical id for fast lookup
+        btn.setAttribute('data-placeId', i)
+        // store nodes with DOMRect coordinates
+        return btn.getBoundingClientRect()
+    })
 
     const getPlaceLabel = (pathEl) => {
         if (!pathEl) {
@@ -40,23 +60,28 @@ onMount(() => {
         let idRef = pathEl.getAttribute('aria-labelledby')
         return document.getElementById(idRef).textContent
     }
-    const activateBtn = (node) => {
+    const getCityPosition = (index) => {
+        const currentCoord = pathBtnCoords[index]
+        const margin = 8
+        return {
+            bottom: currentCoord.bottom + margin,
+            left: (currentCoord.left - wrapper.offsetLeft) + margin,
+            right: currentCoord.right + margin,
+            top: (currentCoord.top - wrapper.offsetTop) + margin
+        }
+    }
+    const initialize = (node) => {
         node.setAttribute('tabindex', '0')
         node.setAttribute('aria-checked', 'true')
-        console.log('active:', getPlaceLabel(node))
     }
-    // collect rendered interactive path nodes
-    const pathBtns = Array.from(seasonMap.querySelectorAll('path[tabindex]'))
-    // make first button focusable
-    activateBtn(pathBtns[0])
-
-    // create array of DOMRects
-    const pathBtnCoords = pathBtns.map((btn, i) => {
-        // set a data attr with a numerical id for fast lookup
-        btn.setAttribute('data-placeId', i)
-        // store nodes with DOMRect coordinates
-        return btn.getBoundingClientRect()
-    })
+    const activateBtn = (node, index) => {
+        // let button index come from mouse or keyboard events
+        let btnIndex = index ? index : currentBtnIndex
+        initialize(node)
+        currentCityName = getPlaceLabel(node)
+        currentCityPosition = getCityPosition(btnIndex)
+        console.log('active:', currentCityName)
+    }
     const distance = (target, rect) => {
         let result = Math.sqrt(Math.pow(target.x - rect.x, 2) + Math.pow(target.y - rect.y, 2))
         // console.log('distance', result)
@@ -126,26 +151,47 @@ onMount(() => {
             }
         }
     }
+    focusHandler = (event) => {
+        if(event.target.dataset.placeId) {
+            activateBtn(pathBtns[event.target.dataset.placeId])
+        }
+    }
+    blurHandler = (event) => {
+        currentCityName = null
+    }
+    mouseHandler = (event) => {
+        let btnIndex = event.target.dataset.placeId
+        activateBtn(pathBtns[btnIndex], btnIndex)
+        console.log(currentCityPosition)
+    }
+    initialize(pathBtns[0])
 })
 </script>
 <style>
-.subunit { fill: #cccccc; }
-
-.subunit-boundary {
-  fill: none;
-  stroke: #fff;
-  stroke-width: 1;
-  stroke-linejoin: round;
+.season-map {
+    position: relative;
 }
-
+.season-map svg {
+    outline: none;
+}
+.subunit {
+    fill: #cccccc;
+}
+.subunit-boundary {
+    fill: none;
+    stroke: #fff;
+    stroke-width: 1;
+    stroke-linejoin: round;
+}
 .subunit-label {
-  fill: #404040;
-  fill-opacity: 1;
-  font-size: 20px;
-  font-weight: 600;
-  text-anchor: middle;
+    fill: #404040;
+    fill-opacity: 1;
+    font-size: 20px;
+    font-weight: 600;
+    text-anchor: middle;
 }
 .place {
+    cursor: pointer;
     fill: none;
     stroke: #484848;
     stroke-width: 1;
@@ -153,32 +199,73 @@ onMount(() => {
 .place-label {
     font-size: 0.85rem;
 }
+.place-popup {
+    background-color: #fff;
+    border: 2px solid #000;
+    border-radius: 5px;
+    min-height: 260px;
+    padding: 0.5em;
+    position: absolute;
+    width: 180px;
+    z-index: 1;
+}
+.place-popup h2 {
+    font-size: 0.95rem;
+    text-align: center;
+}
+.place-popup ul {
+    font-size: 0.85rem;
+}
 </style>
 
-<svg {height} {width} on:keydown={keyHandler} bind:this={seasonMap}>
-    <title>Map of locations with temperature data</title>
-    {#each countries.features as country}
-        <path class={`subunit ${country.id}`} d={path(country)}></path>
-    {/each}
-    <path class="subunit-boundary" d={path(boundaries)}></path>
-    {#each places.features as place, i}
-        {#if place.properties.name in weatherData}
-            <path
-                aria-checked="false"
-                aria-labelledby={`place-label-${i}`}
-                class="place"
-                d={path(place)}
-                role="checkbox"
-                tabindex="-1"
-            >
-            </path>
-            <text
-                class="place-label"
-                id={`place-label-${i}`}
-                transform={`translate(${path.centroid(place)})`}
-            >
-                {place.properties.name}
-            </text>
-        {/if}
-    {/each}
-</svg>
+<div class="season-map" bind:this={wrapper}>
+    <svg {height} {width}
+        on:keydown={keyHandler}
+        on:focusin={focusHandler}
+        on:focusout={blurHandler}
+        bind:this={seasonMap}
+        tabIndex="-1"
+    >
+        <title>Map of locations with temperature data</title>
+        {#each countries.features as country}
+            <path class={`subunit ${country.id}`} d={path(country)}></path>
+        {/each}
+        <path class="subunit-boundary" d={path(boundaries)}></path>
+        {#each places.features as place, i}
+            {#if place.properties.name in weatherData}
+                <path
+                    aria-checked="false"
+                    aria-labelledby={`place-label-${i}`}
+                    class="place"
+                    d={path(place)}
+                    on:mouseover={mouseHandler}
+                    role="checkbox"
+                    tabindex="-1"
+                >
+                </path>
+                <text
+                    class="place-label"
+                    id={`place-label-${i}`}
+                    transform={`translate(${path.centroid(place)})`}
+                >
+                    {place.properties.name}
+                </text>
+            {/if}
+        {/each}
+    </svg>
+    {#if currentCityName}
+        <div class="place-popup" style:left={currentCityPosition.left + 'px'} style:top={currentCityPosition.top + 'px'}>
+            <h2>{currentCityName} spring equinox temperatures</h2>
+            <ul>
+                <li>2023 high: <strong>{weatherData[currentCityName].springequinox2023_high}</strong></li>
+                <li>2023 low: <strong>{weatherData[currentCityName].springequinox2023_low}</strong></li>
+                <li>2013 high: <strong>{weatherData[currentCityName].springequinox2013_high}</strong></li>
+                <li>2013 low: <strong>{weatherData[currentCityName].springequinox2013_low}</strong></li>
+                <li>1973 high: <strong>{weatherData[currentCityName].springequinox1973_high}</strong></li>
+                <li>1973 low: <strong>{weatherData[currentCityName].springequinox1973_low}</strong></li>
+                <li>1948 high: <strong>{weatherData[currentCityName].springequinox1948_high}</strong></li>
+                <li>1948 low: <strong>{weatherData[currentCityName].springequinox1948_low}</strong></li>
+            </ul>
+        </div>
+    {/if}
+</div>
